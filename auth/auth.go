@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -28,7 +31,7 @@ type Client struct {
 
 // NewClient uses to OpenID Connect library to construct a provider which
 // can be invoked within the internal 'authFn'.
-func NewClient(clientID string, issuerURL string, httpClient *http.Client) *Client {
+func NewClient(clientID string, clientSecret string, issuerURL string, httpClient *http.Client) *Client {
 	ctx := oidc.ClientContext(context.Background(), httpClient)
 	// Need to wait for identity service to become available.
 	var provider *oidc.Provider
@@ -52,6 +55,34 @@ func NewClient(clientID string, issuerURL string, httpClient *http.Client) *Clie
 			token, err := verifier.Verify(ctx, rawIDToken)
 			if err != nil {
 				log.Error(err.Error())
+				return ctx, nil, status.Errorf(codes.Unauthenticated, "Token Error")
+			}
+
+			introspectURL := fmt.Sprintf("%s/protocol/openid-connect/token/introspect", issuerURL)
+			introspectReqBody := []byte(fmt.Sprintf("token_type_hint=requesting_party_token&token=%s", rawIDToken))
+			introspectReq, err := http.NewRequest(http.MethodPost, introspectURL, bytes.NewBuffer(introspectReqBody))
+			if err != nil {
+				return ctx, nil, status.Errorf(codes.Internal, "Can't create introspect request because [%s]", err)
+			}
+
+			introspectReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			introspectReq.SetBasicAuth(clientID, clientSecret)
+			introspectResp, err := httpClient.Do(introspectReq)
+			if err != nil {
+				return ctx, nil, status.Errorf(codes.Internal, "Can't introspect token because [%s]", err)
+			}
+
+			var introspectRespBody struct {
+				Active bool `json:"active"`
+			}
+
+			defer introspectResp.Body.Close()
+			err = json.NewDecoder(introspectResp.Body).Decode(&introspectRespBody)
+			if err != nil {
+				return ctx, nil, status.Errorf(codes.Internal, "Can't decode introspect response because [%s]", err)
+			}
+
+			if !introspectRespBody.Active {
 				return ctx, nil, status.Errorf(codes.Unauthenticated, "Token Error")
 			}
 
@@ -90,6 +121,7 @@ func (c *Client) AsHandlerFunc(trustedHosts string) func(next http.Handler) http
 
 				_, _, err := c.authFn(context.Background(), token)
 				if err != nil {
+					log.Error(err.Error())
 					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 					return
 				}
@@ -111,6 +143,7 @@ func (c *Client) AsMiddleWare(ctx context.Context) (context.Context, error) {
 
 	ctx, claims, err := c.authFn(ctx, rawIDToken)
 	if err != nil {
+		log.Error(err.Error())
 		return ctx, err
 	}
 

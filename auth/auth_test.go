@@ -19,9 +19,15 @@ func buildSUT(t *testing.T) (func(ctx context.Context) (context.Context, error),
 		Get("/.well-known/openid-configuration").
 		Reply(200).
 		JSON(body)
+
+	gock.New("https://dev-vm:5556").
+		Post("/protocol/openid-connect/token/introspect").
+		Reply(200).
+		JSON(`{"active": true}`)
+
 	gock.InterceptClient(client)
 
-	authClient := NewClient("", "https://dev-vm:5556", client)
+	authClient := NewClient("", "","https://dev-vm:5556", client)
 	withAuth :=  authClient.AsMiddleWare
 	assert.Nil(t, err)
 	return withAuth, err
