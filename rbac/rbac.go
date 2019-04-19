@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+
 	"google.golang.org/grpc/metadata"
 )
 
@@ -14,6 +15,8 @@ const (
 	RemoveCredential Group = 2
 	RemoveSource     Group = 3
 	RunTask          Group = 4
+	AddTask          Group = 5
+	RemoveTask       Group = 6
 )
 
 // String ...
@@ -23,9 +26,11 @@ func (g Group) String() string {
 		"/add-source",
 		"/remove-credential",
 		"/remove-source",
-		"/run-task"}
+		"/run-task",
+		"/add-task",
+		"/remove-task"}
 
-	if g < AddCredential || g > RunTask {
+	if g < AddCredential || g > RemoveTask {
 		return "Unknown"
 	}
 
