@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
-	"github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -152,6 +152,7 @@ func (c *Client) AsMiddleWare(ctx context.Context) (context.Context, error) {
 	for _, group := range claims.Groups {
 		ctx = metadata.AppendToOutgoingContext(ctx, "groups", group)
 	}
+	ctx = metadata.AppendToOutgoingContext(ctx, "username", claims.Username)
 
 	return ctx, nil
 }
