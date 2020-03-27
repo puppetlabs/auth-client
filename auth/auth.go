@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
-	"github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -97,14 +97,14 @@ func NewClient(clientID string, clientSecret string, issuerURL string, httpClien
 	}
 }
 
-// AsHandlerFunc exposes the authFn as and http.HandlerFunc.  This fn includes a special case
-// where 'trusted hosts' can be verified via their client cert
+// AsHandlerFunc exposes the authFn as and http.HandlerFunc.  This fn includes special cases
+// where 'trusted hosts' can be verified via their client cert or websockets which are verified separately
 func (c *Client) AsHandlerFunc(trustedHosts string) func(next http.Handler) http.HandlerFunc {
 	return func(next http.Handler) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 
-			// if not a trusted host, authenticate the token
-			if !isTrustedHost(trustedHosts, r) {
+			// if not a trusted host or a websocket, authenticate the token
+			if !isTrustedHost(trustedHosts, r) && !isWebsocket(r) {
 
 				var token string
 				tokens, ok := r.Header["Authorization"]
@@ -168,4 +168,43 @@ func isTrustedHost(trustedHosts string, r *http.Request) bool {
 	}
 
 	return false
+}
+
+// InitPayload is able to provide the Authorization header from the init payload
+type InitPayload interface {
+
+	// Authorization gets the Authorization header from the init payload
+	Authorization() string
+}
+
+// AsWSInitFunc exposes the authFn for use during websocket initialization
+func (c *Client) AsWSInitFunc() func(context.Context, InitPayload) error {
+
+	return func(ctx context.Context, initPayload InitPayload) error {
+
+		token := initPayload.Authorization()
+
+		if len(token) > 0 {
+			token = strings.TrimPrefix(token, "Bearer ")
+		}
+
+		if len(token) == 0 {
+			err := fmt.Errorf("Unauthorized - token is missing")
+			log.Error(err.Error())
+			return err
+		}
+
+		_, _, err := c.authFn(context.Background(), token)
+		if err != nil {
+			err = fmt.Errorf("Unauthorized - %s", err)
+			log.Error(err.Error())
+			return err
+		}
+
+		return nil
+	}
+}
+
+func isWebsocket(r *http.Request) bool {
+	return r.Header.Get("Upgrade") == "websocket"
 }
