@@ -50,3 +50,15 @@ func (g Group) Allowed(ctx context.Context) bool {
 
 	return false
 }
+
+// GetUsername pulls the username from the context metadata
+func GetUsername(ctx context.Context) string {
+	var username string
+	if md, ok := metadata.FromOutgoingContext(ctx); ok {
+		usernameArray := md.Get("username")
+		if len(usernameArray) > 0 {
+			username = usernameArray[0]
+		}
+	}
+	return username
+}
