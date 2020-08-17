@@ -36,14 +36,22 @@ func NewClient(clientID string, clientSecret string, issuerURL string, httpClien
 	// Need to wait for identity service to become available.
 	var provider *oidc.Provider
 	var err error
+	var backoff time.Duration = 1 * time.Second
 	for {
 		provider, err = oidc.NewProvider(ctx, issuerURL)
+		if backoff >= time.Duration(30 * time.Second) {
+			log.Errorf("authentication client failed to contact issuer %q: %v. Retrying in ~30 seconds", issuerURL, err)
+		}
 		if err != nil {
-			log.Errorf("failed to query provider %q: %v", issuerURL, err)
-			time.Sleep(5 * time.Second)
+			time.Sleep(backoff)
 		} else {
+			if backoff >= time.Duration(30 * time.Second) {
+				log.Info("auth client established connection to issuer")
+			}
+			backoff = 1
 			break
 		}
+		backoff += backoff
 	}
 
 	config := &oidc.Config{ClientID: clientID, SkipExpiryCheck: false, SkipClientIDCheck: false}
