@@ -17,6 +17,8 @@ const (
 	RunTask          Group = 4
 	AddTask          Group = 5
 	RemoveTask       Group = 6
+	AcceptRisk       Group = 7
+	ManageTag        Group = 8
 )
 
 // String ...
@@ -28,9 +30,11 @@ func (g Group) String() string {
 		"/remove-source",
 		"/run-task",
 		"/add-task",
-		"/remove-task"}
+		"/remove-task",
+		"/accept-risk",
+		"/manage-tag"}
 
-	if g < AddCredential || g > RemoveTask {
+	if g < AddCredential || g > ManageTag {
 		return "Unknown"
 	}
 
