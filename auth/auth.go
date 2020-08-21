@@ -119,12 +119,15 @@ func (c *Client) AsHandlerFunc(trustedHosts string) func(next http.Handler) http
 					return
 				}
 
-				_, _, err := c.authFn(context.Background(), token)
+				_, claims, err := c.authFn(context.Background(), token)
 				if err != nil {
 					log.Error(err.Error())
 					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 					return
 				}
+
+				r = r.Clone(
+					claimsToContext(r.Context(), claims))
 			}
 
 			// must be authenticated if still here
@@ -147,14 +150,18 @@ func (c *Client) AsMiddleWare(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
+	ctx = claimsToContext(ctx, claims)
+
+	return ctx, nil
+}
+
+func claimsToContext(ctx context.Context, claims *Claims) context.Context {
 	// Writing groups claim to outgoing context. We'll pick this up downstream when verifying access to a resource.
 	// Downstream utils for group checks at /rbac/rbac.go, func 'Allowed'
 	for _, group := range claims.Groups {
 		ctx = metadata.AppendToOutgoingContext(ctx, "groups", group)
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "username", claims.Username)
-
-	return ctx, nil
+	return metadata.AppendToOutgoingContext(ctx, "username", claims.Username)
 }
 
 // isTrustedHost uses the common name from the client cert to determine
