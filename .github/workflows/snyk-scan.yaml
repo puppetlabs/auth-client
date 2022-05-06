@@ -1,8 +1,10 @@
 name: Snyk Monitor
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+      - master
 jobs:
   security:
     runs-on: ubuntu-latest
